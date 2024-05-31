@@ -13,13 +13,14 @@ sys.path.append(now_directory)
 from rvc.lib.utils import load_audio
 from rvc.train.slicer import Slicer
 
-experiment_directory = sys.argv[1]
-input_root = sys.argv[2]
-sampling_rate = int(sys.argv[3])
-percentage = float(sys.argv[4])
+sid = sys.argv[1]
+experiment_directory = sys.argv[2]
+input_root = sys.argv[3]
+sampling_rate = int(sys.argv[4])
+percentage = float(sys.argv[5])
 
 try:
-    num_processes = int(sys.argv[5])
+    num_processes = int(sys.argv[6])
 except ValueError:
     num_processes = cpu_count()
 
@@ -59,7 +60,7 @@ class PreProcess:
             1 - self.alpha
         ) * tmp_audio
         wavfile.write(
-            f"{self.gt_wavs_dir}/{idx0}_{idx1}.wav",
+            f"{self.gt_wavs_dir}/{sid}_{idx0}_{idx1}.wav",
             self.sr,
             tmp_audio.astype(np.float32),
         )
@@ -67,7 +68,7 @@ class PreProcess:
             tmp_audio, orig_sr=self.sr, target_sr=16000
         )  # , res_type="soxr_vhq"
         wavfile.write(
-            f"{self.wavs16k_dir}/{idx0}_{idx1}.wav",
+            f"{self.wavs16k_dir}/{sid}_{idx0}_{idx1}.wav",
             16000,
             tmp_audio.astype(np.float32),
         )

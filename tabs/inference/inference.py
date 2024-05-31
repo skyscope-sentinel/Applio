@@ -206,7 +206,7 @@ def save_drop_custom_embedder(dropbox):
 # Inference tab
 def inference_tab():
     default_weight = random.choice(names) if names else None
-    with gr.Row():
+    with gr.Column():
         with gr.Row():
             model_file = gr.Dropdown(
                 label=i18n("Voice Model"),
@@ -216,33 +216,44 @@ def inference_tab():
                 value=default_weight,
                 allow_custom_value=True,
             )
-
+            best_default_index_path = match_index(model_file.value)
             index_file = gr.Dropdown(
                 label=i18n("Index File"),
                 info=i18n("Select the index file to use for the conversion."),
                 choices=get_indexes(),
-                value=match_index(default_weight) if default_weight else "",
+                value=best_default_index_path,
                 interactive=True,
                 allow_custom_value=True,
             )
-        with gr.Column():
+            sid = gr.Slider(
+                minimum=0,
+                maximum=500,
+                step=1,
+                label=i18n("Speaker ID"),
+                info=i18n(
+                    "If your model has been trained with multispeaker, select the ID of the model you want to use."
+                ),
+                value=0,
+                interactive=True,
+            )
+        with gr.Row():
             refresh_button = gr.Button(i18n("Refresh"))
             unload_button = gr.Button(i18n("Unload Voice"))
 
-            unload_button.click(
-                fn=lambda: (
-                    {"value": "", "__type__": "update"},
-                    {"value": "", "__type__": "update"},
-                ),
-                inputs=[],
-                outputs=[model_file, index_file],
-            )
+        unload_button.click(
+            fn=lambda: (
+                {"value": "", "__type__": "update"},
+                {"value": "", "__type__": "update"},
+            ),
+            inputs=[],
+            outputs=[model_file, index_file],
+        )
 
-            model_file.select(
-                fn=lambda model_file_value: match_index(model_file_value),
-                inputs=[model_file],
-                outputs=[index_file],
-            )
+        model_file.select(
+            fn=lambda model_file_value: match_index(model_file_value),
+            inputs=[model_file],
+            outputs=[index_file],
+        )
 
     # Single inference tab
     with gr.Tab(i18n("Single")):
@@ -756,6 +767,7 @@ def inference_tab():
     convert_button1.click(
         fn=run_infer_script,
         inputs=[
+            sid,
             pitch,
             filter_radius,
             index_rate,
@@ -781,6 +793,7 @@ def inference_tab():
     convert_button2.click(
         fn=run_batch_infer_script,
         inputs=[
+            sid,
             pitch_batch,
             filter_radius_batch,
             index_rate_batch,

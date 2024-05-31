@@ -348,7 +348,17 @@ def train_tab():
                     value="v2",
                     interactive=True,
                 )
-
+                sid = gr.Slider(
+                    minimum=0,
+                    maximum=500,
+                    step=1,
+                    label=i18n("Speaker ID"),
+                    info=i18n(
+                        "If your model has been trained with multispeaker, select the ID of the model you want to use."
+                    ),
+                    value=0,
+                    interactive=True,
+                )
                 cpu_cores_preprocess = gr.Slider(
                     1,
                     64,
@@ -373,7 +383,7 @@ def train_tab():
             preprocess_button = gr.Button(i18n("Preprocess Dataset"))
             preprocess_button.click(
                 fn=run_preprocess_script,
-                inputs=[model_name, dataset_path, sampling_rate, cpu_cores_preprocess],
+                inputs=[sid, model_name, dataset_path, sampling_rate, cpu_cores_preprocess],
                 outputs=[preprocess_output_info],
                 api_name="preprocess_dataset",
             )
@@ -450,6 +460,7 @@ def train_tab():
         extract_button.click(
             fn=run_extract_script,
             inputs=[
+                sid,
                 model_name,
                 rvc_version,
                 f0method,

@@ -114,6 +114,22 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
     os.rename(checkpoint_old_version_path, checkpoint_path)
 
 
+def create_filelist(experiment_dir):
+    combined_content = []
+
+    for file_name in os.listdir(experiment_dir):
+        if file_name.endswith(".txt"):
+            file_path = os.path.join(experiment_dir, file_name)
+            with open(file_path, "r") as file:
+                file_content = file.read()
+                combined_content.append(file_content)
+
+    output_file_path = os.path.join(experiment_dir, "filelist.txt")
+    if not os.path.exists(output_file_path):
+        with open(output_file_path, "w") as output_file:
+            output_file.write("\n".join(combined_content))
+
+
 def summarize(
     writer,
     global_step,

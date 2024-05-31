@@ -13,6 +13,7 @@ from utils import (
     load_checkpoint,
     save_checkpoint,
     latest_checkpoint_path,
+    create_filelist
 )
 from random import randint, shuffle
 from time import sleep
@@ -37,7 +38,7 @@ from data_utils import (
     TextAudioCollateMultiNSFsid,
     TextAudioLoader,
     TextAudioLoaderMultiNSFsid,
-)
+    )
 
 from losses import (
     discriminator_loss,
@@ -210,6 +211,8 @@ def run(
     torch.manual_seed(hps.train.seed)
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
+
+    create_filelist(hps.model_dir)
 
     if hps.if_f0 == 1:
         train_dataset = TextAudioLoaderMultiNSFsid(hps.data)

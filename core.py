@@ -38,6 +38,7 @@ locales = list({voice["Locale"] for voice in voices_data})
 
 # Infer
 def run_infer_script(
+    sid,
     f0up_key,
     filter_radius,
     index_rate,
@@ -62,6 +63,7 @@ def run_infer_script(
     clean_audio = "True" if str(clean_audio) == "True" else "False"
     upscale_audio = "True" if str(upscale_audio) == "True" else "False"
     infer_pipeline(
+        sid,
         f0up_key,
         filter_radius,
         index_rate,
@@ -89,6 +91,7 @@ def run_infer_script(
 
 # Batch infer
 def run_batch_infer_script(
+    sid,
     f0up_key,
     filter_radius,
     index_rate,
@@ -130,6 +133,7 @@ def run_batch_infer_script(
             print(f"Inferring {input_path}...")
 
             infer_pipeline(
+                sid,
                 f0up_key,
                 filter_radius,
                 index_rate,
@@ -159,6 +163,7 @@ def run_tts_script(
     tts_text,
     tts_voice,
     tts_rate,
+    sid,
     f0up_key,
     filter_radius,
     index_rate,
@@ -198,6 +203,7 @@ def run_tts_script(
     subprocess.run(command_tts)
 
     infer_pipeline(
+        sid,
         f0up_key,
         filter_radius,
         index_rate,
@@ -225,7 +231,7 @@ def run_tts_script(
 
 
 # Preprocess
-def run_preprocess_script(model_name, dataset_path, sampling_rate, cpu_cores):
+def run_preprocess_script(sid, model_name, dataset_path, sampling_rate, cpu_cores):
     per = 3.0 if config.is_half else 3.7
     preprocess_script_path = os.path.join("rvc", "train", "preprocess", "preprocess.py")
     command = [
@@ -234,6 +240,7 @@ def run_preprocess_script(model_name, dataset_path, sampling_rate, cpu_cores):
         *map(
             str,
             [
+                sid,
                 os.path.join(logs_path, model_name),
                 dataset_path,
                 sampling_rate,
@@ -250,6 +257,7 @@ def run_preprocess_script(model_name, dataset_path, sampling_rate, cpu_cores):
 
 # Extract
 def run_extract_script(
+    sid, 
     model_name,
     rvc_version,
     f0method,
@@ -302,7 +310,7 @@ def run_extract_script(
     subprocess.run(command_2)
 
     generate_config(rvc_version, sampling_rate, model_path)
-    generate_filelist(f0method, model_path, rvc_version, sampling_rate)
+    generate_filelist(f0method, model_path, rvc_version, sampling_rate, sid)
     return f"Model {model_name} extracted successfully."
 
 
@@ -482,6 +490,12 @@ def parse_arguments():
     # Parser for 'infer' mode
     infer_parser = subparsers.add_parser("infer", help="Run inference")
     infer_parser.add_argument(
+        "--sid",
+        type=str,
+        help="Value for speaker ID",
+        default="0",
+    )
+    infer_parser.add_argument(
         "--f0up_key",
         type=str,
         help="Value for f0up_key",
@@ -609,6 +623,12 @@ def parse_arguments():
     # Parser for 'batch_infer' mode
     batch_infer_parser = subparsers.add_parser(
         "batch_infer", help="Run batch inference"
+    )
+    batch_infer_parser.add_argument(
+        "--sid",
+        type=str,
+        help="Value for speaker ID",
+        default="0",
     )
     batch_infer_parser.add_argument(
         "--f0up_key",
@@ -765,6 +785,13 @@ def parse_arguments():
         default="0",
     )
     tts_parser.add_argument(
+        "--f0up_key",
+        type=str,
+        help="Value for f0up_key",
+        choices=[str(i) for i in range(-24, 25)],
+        default="0",
+    )
+    tts_parser.add_argument(
         "--filter_radius",
         type=str,
         help="Value for filter_radius",
@@ -884,6 +911,12 @@ def parse_arguments():
 
     # Parser for 'preprocess' mode
     preprocess_parser = subparsers.add_parser("preprocess", help="Run preprocessing")
+    preprocess_parser.add_argument(
+        "--sid",
+        type=str,
+        help="Value for speaker ID",
+        default="0",
+    )
     preprocess_parser.add_argument("--model_name", type=str, help="Name of the model")
     preprocess_parser.add_argument(
         "--dataset_path",
@@ -906,6 +939,12 @@ def parse_arguments():
 
     # Parser for 'extract' mode
     extract_parser = subparsers.add_parser("extract", help="Run extract")
+    extract_parser.add_argument(
+        "--sid",
+        type=str,
+        help="Value for speaker ID",
+        default="0",
+    )
     extract_parser.add_argument(
         "--model_name",
         type=str,
@@ -1257,6 +1296,7 @@ def main():
     try:
         if args.mode == "infer":
             run_infer_script(
+                str(args.sid),
                 str(args.f0up_key),
                 str(args.filter_radius),
                 str(args.index_rate),
@@ -1279,6 +1319,7 @@ def main():
             )
         elif args.mode == "batch_infer":
             run_batch_infer_script(
+                str(args.sid),
                 str(args.f0up_key),
                 str(args.filter_radius),
                 str(args.index_rate),
@@ -1305,6 +1346,7 @@ def main():
                 str(args.tts_voice),
                 str(args.tts_rate),
                 str(args.f0up_key),
+                str(args.f0up_key),
                 str(args.filter_radius),
                 str(args.index_rate),
                 str(args.rms_mix_rate),
@@ -1326,6 +1368,7 @@ def main():
             )
         elif args.mode == "preprocess":
             run_preprocess_script(
+                str(args.sid),
                 str(args.model_name),
                 str(args.dataset_path),
                 str(args.sampling_rate),
@@ -1333,6 +1376,7 @@ def main():
             )
         elif args.mode == "extract":
             run_extract_script(
+                str(args.sid),
                 str(args.model_name),
                 str(args.rvc_version),
                 str(args.f0method),

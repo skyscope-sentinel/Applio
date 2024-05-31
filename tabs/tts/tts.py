@@ -130,7 +130,7 @@ def save_drop_custom_embedder(dropbox):
 # TTS tab
 def tts_tab():
     default_weight = random.choice(names) if names else ""
-    with gr.Row():
+    with gr.Column():
         with gr.Row():
             model_file = gr.Dropdown(
                 label=i18n("Voice Model"),
@@ -149,24 +149,35 @@ def tts_tab():
                 interactive=True,
                 allow_custom_value=True,
             )
-        with gr.Column():
+            sid = gr.Slider(
+                minimum=0,
+                maximum=500,
+                step=1,
+                label=i18n("Speaker ID"),
+                info=i18n(
+                    "If your model has been trained with multispeaker, select the ID of the model you want to use."
+                ),
+                value=0,
+                interactive=True,
+            )
+        with gr.Row():
             refresh_button = gr.Button(i18n("Refresh"))
             unload_button = gr.Button(i18n("Unload Voice"))
 
-            unload_button.click(
-                fn=lambda: (
-                    {"value": "", "__type__": "update"},
-                    {"value": "", "__type__": "update"},
-                ),
-                inputs=[],
-                outputs=[model_file, index_file],
-            )
+        unload_button.click(
+            fn=lambda: (
+                {"value": "", "__type__": "update"},
+                {"value": "", "__type__": "update"},
+            ),
+            inputs=[],
+            outputs=[model_file, index_file],
+        )
 
-            model_file.select(
-                fn=lambda model_file_value: match_index(model_file_value),
-                inputs=[model_file],
-                outputs=[index_file],
-            )
+        model_file.select(
+            fn=lambda model_file_value: match_index(model_file_value),
+            inputs=[model_file],
+            outputs=[index_file],
+        )
 
     json_path = os.path.join("rvc", "lib", "tools", "tts_voices.json")
     with open(json_path, "r") as file:
@@ -431,6 +442,7 @@ def tts_tab():
             tts_text,
             tts_voice,
             tts_rate,
+            sid,
             pitch,
             filter_radius,
             index_rate,

@@ -109,7 +109,7 @@ def voice_conversion(
     embedder_model_custom=None,
 ):
     global tgt_sr, net_g, vc, hubert_model, version
-
+    print("Voice conversion started...")
     f0_up_key = int(f0_up_key)
     try:
         audio = load_audio(input_audio_path, 16000)
@@ -211,6 +211,7 @@ def voice_conversion(
 
 def get_vc(weight_root, sid):
     global n_spk, tgt_sr, net_g, vc, cpt, version
+    if sid > 0: print("sid", sid)
     if sid == "" or sid == []:
         global hubert_model
         if hubert_model is not None:
@@ -269,6 +270,7 @@ def get_vc(weight_root, sid):
 
 
 def infer_pipeline(
+    sid,
     f0up_key,
     filter_radius,
     index_rate,
@@ -291,7 +293,7 @@ def infer_pipeline(
 ):
     global tgt_sr, net_g, vc, cpt
 
-    get_vc(model_path, 0)
+    get_vc(model_path, sid)
 
     try:
 
@@ -300,7 +302,7 @@ def infer_pipeline(
 
         start_time = time.time()
         voice_conversion(
-            sid=0,
+            sid=sid,
             input_audio_path=audio_input_path,
             f0_up_key=f0up_key,
             f0_file=None,
