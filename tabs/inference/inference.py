@@ -18,6 +18,8 @@ i18n = I18nAuto()
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
+from tabs.inference.realtime import realtime_tab
+
 model_root = os.path.join(now_dir, "logs")
 audio_root = os.path.join(now_dir, "assets", "audios")
 custom_embedder_root = os.path.join(
@@ -665,6 +667,8 @@ def inference_tab():
                 label=i18n("Output Information"),
                 info=i18n("The output information will be displayed here."),
             )
+
+    realtime_tab()
 
     def toggle_visible(checkbox):
         return {"visible": checkbox, "__type__": "update"}
