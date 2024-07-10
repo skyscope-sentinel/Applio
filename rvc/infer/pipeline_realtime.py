@@ -293,7 +293,6 @@ class Pipeline:
             pitchf: Original F0 contour for pitch guidance.
             index: FAISS index for speaker embedding retrieval.
             big_npy: Speaker embeddings stored in a NumPy array.
-            index_rate: Blending rate for speaker embedding retrieval.
             version: Model version ("v1" or "v2").
             protect: Protection level for preserving the original pitch.
         """
@@ -395,12 +394,9 @@ class Pipeline:
             input_audio_path: Path to the input audio file.
             f0_up_key: Key to adjust the pitch of the F0 contour.
             f0_method: Method to use for F0 estimation.
-            resample_sr: Resampling rate for the output audio.
-            rms_mix_rate: Blending rate for adjusting the RMS level of the output audio.
-            version: Model version.
             protect: Protection level for preserving the original pitch.
             hop_length: Hop length for F0 estimation methods.
-            f0_file: Path to a file containing an F0 contour to use.
+            version: Model version.
         """
         index = big_npy = None
         audio = signal.filtfilt(bh, ah, audio)

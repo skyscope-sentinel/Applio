@@ -5,6 +5,8 @@ import torch
 import numpy as np
 import argparse
 
+pa = pyaudio.PyAudio()
+
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
@@ -57,7 +59,6 @@ def realtime(
     repeat = 3 if config.is_half else 1
     repeat *= quality
 
-    pa = pyaudio.PyAudio()
     print(
         "input_device: %s"
         % (
@@ -109,9 +110,11 @@ def realtime(
                     np.max(audio_input).item(),
                 )
             )
+
             infer_pipeline = VoiceConverter(
                 repeat, hubert_model, model_data
             ).infer_pipeline
+
             audio_output = infer_pipeline(
                 audio_input,
                 f0_up_key,
@@ -119,6 +122,7 @@ def realtime(
                 protect,
                 hop_length,
             )
+
             audio_output = audio_output.astype(np.float32, order="C") / 32768.0
 
             print(

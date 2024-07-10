@@ -45,22 +45,11 @@ class VoiceConverter:
 
         Args:
             sid: Speaker ID for the target voice.
-            input_audio_path: Path to the input audio file.
+            audio: Input audio to convert.
             f0_up_key: Pitch shift value in semitones.
-            f0_file: Path to an external F0 file for pitch guidance.
             f0_method: F0 estimation method to use.
-            file_index: Path to the FAISS index for speaker embedding retrieval.
-            index_rate: Weighting factor for speaker embedding retrieval.
-            resample_sr: Target sampling rate for resampling.
-            rms_mix_rate: Mixing ratio for adjusting RMS levels.
             protect: Protection level for preserving the original pitch.
             hop_length: Hop length for F0 estimation.
-            output_path: Path for saving the converted audio.
-            split_audio: Whether to split the audio into segments for processing.
-            f0_autotune: Whether to apply autotune to the F0 contour.
-            filter_radius: Radius for median filtering of the F0 contour.
-            embedder_model: Path to the embedder model.
-            embedder_model_custom: Path to a custom embedder model.
         """
         f0_up_key = int(f0_up_key)
         try:
@@ -121,25 +110,11 @@ class VoiceConverter:
         Main inference pipeline for voice conversion.
 
         Args:
+            audio: Input audio.
             f0_up_key: Pitch shift value.
-            filter_radius: Filter radius for F0 smoothing.
-            index_rate: Speaker embedding retrieval rate.
-            rms_mix_rate: RMS mixing ratio.
+            f0_method: F0 estimation method.
             protect: Pitch protection level.
             hop_length: Hop length for F0 estimation.
-            f0_method: F0 estimation method.
-            audio_input_path: Input audio file path.
-            audio_output_path: Output audio file path.
-            model_path: Model weight file path.
-            index_path: FAISS index file path.
-            split_audio: Whether to split audio.
-            f0_autotune: Whether to apply autotune.
-            clean_audio: Whether to apply noise reduction.
-            clean_strength: Noise reduction strength.
-            export_format: Output audio format.
-            embedder_model: Embedder model path.
-            embedder_model_custom: Custom embedder model path.
-            upscale_audio: Whether to upscale audio.
         """
         self.setup_network()
         self.setup_vc_instance()
