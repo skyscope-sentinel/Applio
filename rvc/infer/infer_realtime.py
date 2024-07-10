@@ -16,7 +16,7 @@ class VoiceConverter:
     A class for performing voice conversion using the Retrieval-Based Voice Conversion (RVC) method.
     """
 
-    def __init__(self, x_pad, hubert_model):
+    def __init__(self, x_pad, hubert_model, cpt):
         """
         Initializes the VoiceConverter with default configuration, and sets up models and parameters.
         """
@@ -25,7 +25,7 @@ class VoiceConverter:
         self.tgt_sr = None  # Target sampling rate for the output audio
         self.net_g = None  # Generator network for voice conversion
         self.vc = None  # Voice conversion pipeline instance
-        self.cpt = None  # Checkpoint for loading model weights
+        self.cpt = cpt  # Checkpoint for loading model weights
         self.version = None  # Model version
         self.n_spk = None  # Number of speakers in the model
         self.use_f0 = None  # Whether the model uses F0
@@ -85,74 +85,32 @@ class VoiceConverter:
         except Exception as error:
             print(error)
 
-    def get_vc(self, weight_root, sid):
-        """
-        Loads the voice conversion model and sets up the pipeline.
-
-        Args:
-            weight_root: Path to the model weight file.
-            sid: Speaker ID (currently not used).
-        """
-        if sid == "" or sid == []:
-            self.cleanup_model()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-        self.load_model(weight_root)
-
-        if self.cpt is not None:
-            self.setup_network()
-            self.setup_vc_instance()
-
-    def cleanup_model(self):
-        if self.hubert_model is not None:
-            print("clean_empty_cache")
-            del self.net_g, self.n_spk, self.vc, self.hubert_model, self.tgt_sr
-            self.hubert_model = self.net_g = self.n_spk = self.vc = self.tgt_sr = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-        del self.net_g, self.cpt
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        self.cpt = None
-
-    def load_model(self, weight_root):
-        self.cpt = (
-            torch.load(weight_root, map_location="cpu")
-            if os.path.isfile(weight_root)
-            else None
-        )
-
     def setup_network(self):
-        if self.cpt is not None:
-            self.tgt_sr = self.cpt["config"][-1]
-            self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
-            self.use_f0 = self.cpt.get("f0", 1)
+        self.tgt_sr = self.cpt["config"][-1]
+        self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
+        self.use_f0 = self.cpt.get("f0", 1)
 
-            self.version = self.cpt.get("version", "v1")
-            self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
-            self.net_g = Synthesizer(
-                *self.cpt["config"],
-                use_f0=self.use_f0,
-                text_enc_hidden_dim=self.text_enc_hidden_dim,
-                is_half=self.config.is_half,
-            )
-            del self.net_g.enc_q
-            self.net_g.load_state_dict(self.cpt["weight"], strict=False)
-            self.net_g.eval().to(self.config.device)
-            self.net_g = (
-                self.net_g.half() if self.config.is_half else self.net_g.float()
+        self.version = self.cpt.get("version", "v1")
+        self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
+        self.net_g = Synthesizer(
+            *self.cpt["config"],
+            use_f0=self.use_f0,
+            text_enc_hidden_dim=self.text_enc_hidden_dim,
+            is_half=self.config.is_half,
+        )
+        del self.net_g.enc_q
+        self.net_g.load_state_dict(self.cpt["weight"], strict=False)
+        self.net_g.eval().to(self.config.device)
+        self.net_g = (
+            self.net_g.half() if self.config.is_half else self.net_g.float()
             )
 
     def setup_vc_instance(self):
-        if self.cpt is not None:
-            self.vc = VC(self.tgt_sr, self.x_pad)
-            self.n_spk = self.cpt["config"][-3]
+        self.vc = VC(self.tgt_sr, self.x_pad)
+        self.n_spk = self.cpt["config"][-3]
 
     def infer_pipeline(
         self,
-        model_path,
         audio,
         f0_up_key,
         f0_method,
@@ -183,8 +141,8 @@ class VoiceConverter:
             embedder_model_custom: Custom embedder model path.
             upscale_audio: Whether to upscale audio.
         """
-        self.get_vc(model_path, 0)
-
+        self.setup_network()
+        self.setup_vc_instance()
         try:
             audio_opt = self.voice_conversion(
                 sid=0,

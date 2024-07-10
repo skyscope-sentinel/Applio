@@ -47,3 +47,4 @@ pypresence
 beautifulsoup4
 flask
 local-attention
+psutil

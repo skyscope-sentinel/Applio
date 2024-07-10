@@ -1,8 +1,9 @@
 import os, sys
 import gradio as gr
-import subprocess
+import subprocess, psutil
 
 from assets.i18n.i18n import I18nAuto
+
 i18n = I18nAuto()
 
 python = sys.executable
@@ -23,6 +24,7 @@ names = [
     )
 ]
 
+
 def change_choices():
     names = [
         os.path.join(root, file)
@@ -33,17 +35,21 @@ def change_choices():
             and not (file.startswith("G_") or file.startswith("D_"))
         )
     ]
-    return (
-        {"choices": sorted(names), "__type__": "update"},
-    )
+    return ({"choices": sorted(names), "__type__": "update"},)
+
 
 def stop_realtime():
     global process
     if process:
-        process.terminate()
-        print("Realtime process terminated.")
+        parent = psutil.Process(process.pid)
+        for child in parent.children(recursive=True):
+            child.kill()
+        parent.kill()
+        process.wait()
+        print("Realtime process and all its children have been terminated.")
 
-def start_realtime(    
+
+def start_realtime(
     input_device_index,
     output_device_index,
     buffer_size,
@@ -78,6 +84,7 @@ def start_realtime(
         str(model_path),
     ]
     process = subprocess.Popen(command_realtime, shell=True)
+
 
 # Single inference tab
 def realtime_tab():

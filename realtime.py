@@ -9,10 +9,12 @@ now_dir = os.getcwd()
 sys.path.append(now_dir)
 
 from rvc.configs.config import Config
+
 config = Config()
 
 from rvc.infer.infer_realtime import VoiceConverter
 from rvc.lib.utils import load_embedding
+
 
 def load_hubert(embedder_model, embedder_model_custom=None):
     """
@@ -24,12 +26,17 @@ def load_hubert(embedder_model, embedder_model_custom=None):
     """
     models, _, _ = load_embedding(embedder_model, embedder_model_custom)
     hubert_model = models[0].to(config.device)
-    hubert_model = (
-        hubert_model.half()
-        if config.is_half
-        else hubert_model.float()
-    )
+    hubert_model = hubert_model.half() if config.is_half else hubert_model.float()
     return hubert_model.eval()
+
+
+def load_model(weight_root):
+    return (
+        torch.load(weight_root, map_location="cpu")
+        if os.path.isfile(weight_root)
+        else None
+    )
+
 
 def realtime(
     input_device_index,
@@ -42,18 +49,13 @@ def realtime(
     f0_method,
     model_path,
 ):
+    model_data = load_model(model_path)
+    hubert_model = load_hubert("contentvec")
+
+    tgt_sr = model_data["config"][-1]
+
     repeat = 3 if config.is_half else 1
     repeat *= quality
-    model_data = torch.load(model_path, map_location="cpu")
-    sr = model_data.get("sr", "None")
-    if sr == "32k":
-        sampling_ratio = 32000
-    elif sr == "48k":
-        sampling_ratio = 48000
-    else:
-        sampling_ratio = 40000
-
-    hubert_model = load_hubert("contentvec")
 
     pa = pyaudio.PyAudio()
     print(
@@ -85,7 +87,7 @@ def realtime(
         frames_per_buffer=frames_per_buffer,
     )
     output_stream = pa.open(
-        rate=sampling_ratio,
+        rate=tgt_sr,
         channels=1,
         format=pyaudio.paFloat32,
         output=True,
@@ -107,9 +109,10 @@ def realtime(
                     np.max(audio_input).item(),
                 )
             )
-            infer_pipeline = VoiceConverter(repeat, hubert_model).infer_pipeline
+            infer_pipeline = VoiceConverter(
+                repeat, hubert_model, model_data
+            ).infer_pipeline
             audio_output = infer_pipeline(
-                model_path,
                 audio_input,
                 f0_up_key,
                 f0_method,
