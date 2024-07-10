@@ -152,7 +152,9 @@ def realtime(
 def list_audio_devices():
     pa = pyaudio.PyAudio()
     for i in range(pa.get_device_count()):
-        print(pa.get_device_info_by_index(i))
+        device_info = pa.get_device_info_by_index(i)
+        if device_info["maxInputChannels"] > 0 or device_info["maxOutputChannels"] > 0:
+            print(f"Index: {i}, Name: {device_info['name']}")
     pa.terminate()
 
 
