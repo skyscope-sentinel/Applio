@@ -31,6 +31,7 @@ torchvision==0.16.1
 einops 
 libf0 
 torchfcpe
+pyaudio
 
 # Visualization
 matplotlib==3.7.2
