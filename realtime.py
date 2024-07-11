@@ -96,6 +96,10 @@ def realtime(
     )
     input_stream.start_stream()
 
+    infer_pipeline = VoiceConverter(
+        repeat, hubert_model, model_data
+    ).infer_pipeline
+
     try:
         while input_stream.is_active():
             audio_input = np.frombuffer(
@@ -110,10 +114,6 @@ def realtime(
                     np.max(audio_input).item(),
                 )
             )
-
-            infer_pipeline = VoiceConverter(
-                repeat, hubert_model, model_data
-            ).infer_pipeline
 
             audio_output = infer_pipeline(
                 audio_input,
