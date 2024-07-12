@@ -177,11 +177,8 @@ def realtime_tab():
                         "Pitch extraction algorithm to use for the audio conversion. The default algorithm is rmvpe, which is recommended for most cases."
                     ),
                     choices=[
-                        "crepe",
-                        "crepe-tiny",
                         "rmvpe",
                         "fcpe",
-                        "hybrid[rmvpe+fcpe]",
                     ],
                     value="rmvpe",
                     interactive=True,

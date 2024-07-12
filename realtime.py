@@ -4,6 +4,7 @@ import pyaudio
 import torch
 import numpy as np
 import argparse
+import time
 
 pa = pyaudio.PyAudio()
 
@@ -96,24 +97,24 @@ def realtime(
     )
     input_stream.start_stream()
 
-    infer_pipeline = VoiceConverter(
-        repeat, hubert_model, model_data
-    ).infer_pipeline
+    infer_pipeline = VoiceConverter(repeat, hubert_model, model_data).infer_pipeline
 
+    start_time = time.time()
+    last_time = start_time
+    total_frames = 0
     try:
         while input_stream.is_active():
             audio_input = np.frombuffer(
                 input_stream.read(frames_per_buffer), dtype=np.float32
             )
-            print(
-                "audio_input: %s, %s, %s, %s"
-                % (
-                    audio_input.shape,
-                    audio_input.dtype,
-                    np.min(audio_input).item(),
-                    np.max(audio_input).item(),
-                )
-            )
+            total_frames += frames_per_buffer
+
+            # Measure inference time in milliseconds
+            current_time = time.time()
+            elapsed_time_ms = (current_time - last_time) * 1000
+            last_time = current_time
+            inference_ms = elapsed_time_ms
+            print(f"Inference Time: {inference_ms:.2f} ms")
 
             audio_output = infer_pipeline(
                 audio_input,
@@ -124,16 +125,6 @@ def realtime(
             )
 
             audio_output = audio_output.astype(np.float32, order="C") / 32768.0
-
-            print(
-                "audio_output: %s, %s, %s, %s"
-                % (
-                    audio_output.shape,
-                    audio_output.dtype,
-                    np.min(audio_output).item() if audio_output.size > 0 else None,
-                    np.max(audio_output).item() if audio_output.size > 0 else None,
-                )
-            )
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -148,13 +139,56 @@ def realtime(
         input_stream.close()
         pa.terminate()
 
+        # Calculate average inference time in milliseconds
+        end_time = time.time()
+        total_time_ms = (end_time - start_time) * 1000
+        avg_inference_ms = total_time_ms / total_frames
+        print(f"Average Inference Time: {avg_inference_ms:.2f} ms")
 
-def list_audio_devices():
+
+def list_audio_devices(sample_rate=16000, channels=1):
     pa = pyaudio.PyAudio()
+    print(
+        f"Checking devices for compatibility with sample rate: {sample_rate} Hz and channels: {channels}"
+    )
+
+    compatible_devices = []
     for i in range(pa.get_device_count()):
         device_info = pa.get_device_info_by_index(i)
-        if device_info["maxInputChannels"] > 0 or device_info["maxOutputChannels"] > 0:
-            print(f"Index: {i}, Name: {device_info['name']}")
+        is_input = device_info["maxInputChannels"] >= channels
+        is_output = (
+            device_info["maxOutputChannels"] >= channels
+            and device_info["maxOutputChannels"] > 0
+        )
+
+        try:
+            if is_input:
+                pa.is_format_supported(
+                    sample_rate,
+                    input_device=device_info["index"],
+                    input_channels=channels,
+                    input_format=pyaudio.paFloat32,
+                )
+                compatible_devices.append((i, device_info["name"], "input"))
+
+            if is_output:
+                pa.is_format_supported(
+                    sample_rate,
+                    output_device=device_info["index"],
+                    output_channels=channels,
+                    output_format=pyaudio.paFloat32,
+                )
+                compatible_devices.append((i, device_info["name"], "output"))
+
+        except ValueError:
+            continue
+
+    if not compatible_devices:
+        print("No compatible devices found.")
+    else:
+        for device in compatible_devices:
+            print(f"Index: {device[0]}, Name: {device[1]}, Type: {device[2]}")
+
     pa.terminate()
 
 
@@ -204,19 +238,10 @@ def parse_arguments():
         type=str,
         help="Value for f0_method",
         choices=[
-            "pm",
-            "harvest",
-            "dio",
-            "crepe",
-            "crepe-tiny",
             "rmvpe",
             "fcpe",
-            "hybrid[crepe+rmvpe]",
-            "hybrid[crepe+fcpe]",
-            "hybrid[rmvpe+fcpe]",
-            "hybrid[crepe+rmvpe+fcpe]",
         ],
-        default="rmvpe",
+        default="fcpe",
     )
     parser.add_argument("--pth_path", type=str, help="Path to the .pth file")
 

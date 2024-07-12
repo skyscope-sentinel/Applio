@@ -25,6 +25,7 @@ bh, ah = signal.butter(
     N=FILTER_ORDER, Wn=CUTOFF_FREQUENCY, btype="high", fs=SAMPLE_RATE
 )
 
+
 class Pipeline:
     """
     The main pipeline class for performing voice conversion, including preprocessing, F0 estimation,
@@ -73,118 +74,22 @@ class Pipeline:
             1046.50,
         ]
 
-    def get_f0_crepe(
-        self,
-        x,
-        f0_min,
-        f0_max,
-        p_len,
-        hop_length,
-        model="full",
-    ):
-        """
-        Estimates the fundamental frequency (F0) of a given audio signal using the Crepe model.
-
-        Args:
-            x: The input audio signal as a NumPy array.
-            f0_min: Minimum F0 value to consider.
-            f0_max: Maximum F0 value to consider.
-            p_len: Desired length of the F0 output.
-            hop_length: Hop length for the Crepe model.
-            model: Crepe model size to use ("full" or "tiny").
-        """
-        x = x.astype(np.float32)
-        x /= np.quantile(np.abs(x), 0.999)
-        audio = torch.from_numpy(x).to(self.device, copy=True)
-        audio = torch.unsqueeze(audio, dim=0)
-        if audio.ndim == 2 and audio.shape[0] > 1:
-            audio = torch.mean(audio, dim=0, keepdim=True).detach()
-        audio = audio.detach()
-        pitch: Tensor = torchcrepe.predict(
-            audio,
-            self.sample_rate,
-            hop_length,
-            f0_min,
-            f0_max,
-            model,
-            batch_size=hop_length * 2,
+        # Pre-load and cache the models for faster inference
+        self.model_rmvpe = RMVPE0Predictor(
+            os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
+            is_half=self.is_half,
             device=self.device,
-            pad=True,
         )
-        p_len = p_len or x.shape[0] // hop_length
-        source = np.array(pitch.squeeze(0).cpu().float().numpy())
-        source[source < 0.001] = np.nan
-        target = np.interp(
-            np.arange(0, len(source) * p_len, len(source)) / p_len,
-            np.arange(0, len(source)),
-            source,
+
+        self.model_fcpe = FCPEF0Predictor(
+            os.path.join("rvc", "models", "predictors", "fcpe.pt"),
+            f0_min=int(self.f0_min),
+            f0_max=int(self.f0_max),
+            dtype=torch.float32,
+            device=self.device,
+            sampling_rate=self.sample_rate,
+            threshold=0.03,
         )
-        f0 = np.nan_to_num(target)
-        return f0
-
-    def get_f0_hybrid(
-        self,
-        methods_str,
-        x,
-        f0_min,
-        f0_max,
-        p_len,
-        hop_length,
-    ):
-        """
-        Estimates the fundamental frequency (F0) using a hybrid approach combining multiple methods.
-
-        Args:
-            methods_str: A string specifying the methods to combine (e.g., "hybrid[crepe+rmvpe]").
-            x: The input audio signal as a NumPy array.
-            f0_min: Minimum F0 value to consider.
-            f0_max: Maximum F0 value to consider.
-            p_len: Desired length of the F0 output.
-            hop_length: Hop length for F0 estimation methods.
-        """
-        methods_str = re.search("hybrid\[(.+)\]", methods_str)
-        if methods_str:
-            methods = [method.strip() for method in methods_str.group(1).split("+")]
-        f0_computation_stack = []
-        print(f"Calculating f0 pitch estimations for methods {str(methods)}")
-        x = x.astype(np.float32)
-        x /= np.quantile(np.abs(x), 0.999)
-        for method in methods:
-            f0 = None
-            if method == "crepe":
-                f0 = self.get_f0_crepe_computation(
-                    x, f0_min, f0_max, p_len, int(hop_length)
-                )
-            elif method == "rmvpe":
-                self.model_rmvpe = RMVPE0Predictor(
-                    os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
-                    is_half=self.is_half,
-                    device=self.device,
-                )
-                f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
-                f0 = f0[1:]
-            elif method == "fcpe":
-                self.model_fcpe = FCPEF0Predictor(
-                    os.path.join("rvc", "models", "predictors", "fcpe.pt"),
-                    f0_min=int(f0_min),
-                    f0_max=int(f0_max),
-                    dtype=torch.float32,
-                    device=self.device,
-                    sampling_rate=self.sample_rate,
-                    threshold=0.03,
-                )
-                f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
-                del self.model_fcpe
-                gc.collect()
-            f0_computation_stack.append(f0)
-
-        f0_computation_stack = [fc for fc in f0_computation_stack if fc is not None]
-        f0_median_hybrid = None
-        if len(f0_computation_stack) == 1:
-            f0_median_hybrid = f0_computation_stack[0]
-        else:
-            f0_median_hybrid = np.nanmedian(f0_computation_stack, axis=0)
-        return f0_median_hybrid
 
     def get_f0(
         self,
@@ -208,41 +113,10 @@ class Pipeline:
             hop_length: Hop length for F0 estimation methods.
             inp_f0: Optional input F0 contour to use instead of estimating.
         """
-        if f0_method == "crepe":
-            f0 = self.get_f0_crepe(x, self.f0_min, self.f0_max, p_len, int(hop_length))
-        elif f0_method == "crepe-tiny":
-            f0 = self.get_f0_crepe(
-                x, self.f0_min, self.f0_max, p_len, int(hop_length), "tiny"
-            )
-        elif f0_method == "rmvpe":
-            self.model_rmvpe = RMVPE0Predictor(
-                os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
-                is_half=self.is_half,
-                device=self.device,
-            )
+        if f0_method == "rmvpe":
             f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
         elif f0_method == "fcpe":
-            self.model_fcpe = FCPEF0Predictor(
-                os.path.join("rvc", "models", "predictors", "fcpe.pt"),
-                f0_min=int(self.f0_min),
-                f0_max=int(self.f0_max),
-                dtype=torch.float32,
-                device=self.device,
-                sampling_rate=self.sample_rate,
-                threshold=0.03,
-            )
             f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
-            del self.model_fcpe
-            gc.collect()
-        elif "hybrid" in f0_method:
-            f0 = self.get_f0_hybrid(
-                f0_method,
-                x,
-                self.f0_min,
-                self.f0_max,
-                p_len,
-                hop_length,
-            )
 
         f0 *= pow(2, f0_up_key / 12)
         tf0 = self.sample_rate // self.window
@@ -348,8 +222,8 @@ class Pipeline:
 
         if protect < 0.5 and pitch != None and pitchf != None:
             pitchff = pitchf.clone()
-            pitchff[pitchf > 0] = 1
-            pitchff[pitchf < 1] = protect
+            pitchff[pitchff > 0] = 1
+            pitchff[pitchff < 1] = protect
             pitchff = pitchff.unsqueeze(-1)
             feats = feats * pitchff + feats0 * (1 - pitchff)
             feats = feats.to(feats0.dtype)
