@@ -63,7 +63,9 @@ class F0Extractor:
                 .unsqueeze(-1)
                 .to(config.device)
             )
-            model = torchfcpe.spawn_bundled_infer_model(device=config.device)
+            model = torchfcpe.spawn_infer_model_from_pt(
+            device=config.device, pt_path="rvc/models/predictors/fcpe.pt"
+        )
 
             f0 = model.infer(
                 audio,

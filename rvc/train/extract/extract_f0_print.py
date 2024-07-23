@@ -4,6 +4,7 @@ import time
 import tqdm
 import torch
 import torchcrepe
+import torchfcpe
 import numpy as np
 from multiprocessing import Pool
 
@@ -19,7 +20,6 @@ f0_method = sys.argv[2]
 hop_length = int(sys.argv[3])
 num_processes = int(sys.argv[4])
 
-
 class FeatureInput:
     """Class for F0 extraction."""
 
@@ -31,10 +31,11 @@ class FeatureInput:
         self.f0_min = 50.0
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
+        self.device = "cpu"
         self.model_rmvpe = RMVPE0Predictor(
             os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
             is_half=False,
-            device="cpu",
+            device=self.device,
         )
 
     def compute_f0(self, np_arr, f0_method, hop_length):
@@ -45,6 +46,8 @@ class FeatureInput:
             f0 = self.get_crepe(np_arr, p_len, hop_length)
         elif f0_method == "rmvpe":
             f0 = self.model_rmvpe.infer_from_audio(np_arr, thred=0.03)
+        elif f0_method == "fcpe":
+            f0 = self.get_fcpe(np_arr, hop_length)
         else:
             raise ValueError(f"Unknown F0 method: {f0_method}")
 
@@ -52,7 +55,7 @@ class FeatureInput:
 
     def get_crepe(self, x, p_len, hop_length):
         """Extract F0 using CREPE."""
-        audio = torch.from_numpy(x.astype(np.float32)).to("cpu")
+        audio = torch.from_numpy(x.astype(np.float32)).to(self.device)
         audio /= torch.quantile(torch.abs(audio), 0.999)
         audio = torch.unsqueeze(audio, dim=0)
 
@@ -64,7 +67,7 @@ class FeatureInput:
             self.f0_max,
             "full",
             batch_size=hop_length * 2,
-            device="cpu",
+            device=self.device,
             pad=True,
         )
 
@@ -76,6 +79,31 @@ class FeatureInput:
             source,
         )
         return np.nan_to_num(target)
+
+    def get_fcpe(self, x, hop_length):
+        """Extract F0 using FCPE."""
+        if len(x.shape) == 1:  # Mono
+            x = torch.from_numpy(x).float().unsqueeze(0).to(self.device)
+        else:  # Stereo
+            x = torch.from_numpy(x).float().to(self.device)
+
+        model = torchfcpe.spawn_infer_model_from_pt(
+            device=self.device, pt_path="rvc/models/predictors/fcpe.pt"
+        )
+        f0_target_length = (len(x[0]) // hop_length) + 1
+
+        f0 = model.infer(
+            x,
+            sr=self.fs,
+            decoder_mode="local_argmax",
+            threshold=0.006,
+            f0_min=self.f0_min,
+            f0_max=self.f0_max,
+            interp_uv=False,
+            output_interp_target_length=f0_target_length,
+        )
+
+        return f0.squeeze().cpu().numpy()
 
     def coarse_f0(self, f0):
         """Convert F0 to coarse F0."""
@@ -107,7 +135,6 @@ class FeatureInput:
         except Exception as error:
             print(f"F0 extraction failed for {inp_path}: {error}")
 
-
 if __name__ == "__main__":
     feature_input = FeatureInput()
     paths = []
@@ -124,7 +151,7 @@ if __name__ == "__main__":
         input_path = os.path.join(input_root, name)
         output_path1 = os.path.join(output_root1, name)
         output_path2 = os.path.join(output_root2, name)
-        np_arr = load_audio(input_path, 16000) #self.fs?
+        np_arr = load_audio(input_path, 16000)
         paths.append([input_path, output_path1, output_path2, np_arr])
 
     print(f"Starting extraction with {num_processes} cores and {f0_method}...")
